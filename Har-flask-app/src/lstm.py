@@ -308,6 +308,8 @@ class ActionClassificationLSTM(pl.LightningModule):
         self.linear = nn.Linear(hidden_dim, TOT_ACTION_CLASSES)
 
     def forward(self, x):
+        device = next(self.parameters()).device  # Get the device of the model parameters
+        x = x.to(device)  # Move the input tensor to the same device as the model parameters
         lstm_out, (ht, ct) = self.lstm(x)
         return self.linear(ht[-1])
 
