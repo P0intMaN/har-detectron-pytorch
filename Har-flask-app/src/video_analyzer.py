@@ -52,7 +52,7 @@ def analyse_video(pose_detector, lstm_classifier, video_path):
         # read the frame
         ret, frame = cap.read()
         # return if end of the video
-        if ret == False:
+        if not ret:
             break
         # make a copy of the frame
         img = frame.copy()
@@ -75,7 +75,7 @@ def analyse_video(pose_detector, lstm_classifier, video_path):
                     features.append(row[1])
 
                 # append the feature array into the buffer
-                # not that max buffer size is 32 and buffer_window operates in a sliding window fashion
+                # note that max buffer size is 32 and buffer_window operates in a sliding window fashion
                 if len(buffer_window) < WINDOW_SIZE:
                     buffer_window.append(features)
                 else:
@@ -83,16 +83,19 @@ def analyse_video(pose_detector, lstm_classifier, video_path):
                     model_input = torch.Tensor(np.array(buffer_window, dtype=np.float32))
                     # add extra dimension
                     model_input = torch.unsqueeze(model_input, dim=0)
+                    # move the input to the same device as the model
+                    model_input = model_input.to(next(lstm_classifier.parameters()).device)
                     # predict the action class using lstm
                     y_pred = lstm_classifier(model_input)
                     prob = F.softmax(y_pred, dim=1)
                     # get the index of the max probability
                     pred_index = prob.data.max(dim=1)[1]
+                    # move the index tensor to cpu before converting to numpy
+                    pred_index = pred_index.cpu()
+                    label = LABELS[pred_index.numpy()[0]]
                     # pop the first value from buffer_window and add the new entry in FIFO fashion, to have a sliding window of size 32.
                     buffer_window.pop(0)
                     buffer_window.append(features)
-                    label = LABELS[pred_index.numpy()[0]]
-                    #print("Label detected ", label)
 
         # add predicted label into the frame
         if label is not None:
@@ -121,7 +124,7 @@ def stream_video(video_path):
     print("tot_frames", tot_frames)
     while True:
         ret, frame = cap.read()
-        if ret == False:
+        if not ret:
             break
         out_frame = cv2.imencode('.jpg', frame)[1].tobytes()
         result = (b'--frame\r\n'b'Content-Type: image/jpeg\r\n\r\n' +
